@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Franklin Bristow" />
+  <title>COMP 3430 Assignment 1</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style>
+  .aside::before {
+      content: "\2B50 Aside";
+      font-weight: bold;
+  }
+
+  .aside {
+      border-style: dotted;
+      padding: 1em;
+  }
+  body {
+      max-width: 50em;
+  }
+
+  dt {
+      font-weight: bold;
+  }
+
+  dt::before {
+      content: "\1f4dd "; 
+  }
+  .challenge::before {
+      content: "\1F3C6  Challenge";
+      font-weight: bold;
+  }
+
+  .challenge {
+      border-style: dotted;
+      padding: 1em;
+  }
+  .checklist {
+      padding: 1em;
+      border-style: dotted;
+  }
+
+  .checklist::before {
+      content: "\2705  Checklist";
+      font-weight: bold;
+  }
+  summary {
+      cursor: pointer;
+      font-weight: bold;
+  }
+  .example {
+      padding: 1em;
+      border-style: dotted;
+  }
+
+  .example::before {
+      content: "\1f680 Example";
+      font-weight: bold;
+  }
+  .input .output {
+      padding: 1em;
+      border-style: dashed;
+  }
+
+  .input::before {
+      content: "\2328\fe0f  Input";
+      font-weight: bold;
+  }
+
+  .output::before {
+      content: "\1f5a8\fe0f  Output";
+      font-weight: bold;
+      vertical-align: top;
+  }
+  kbd {
+      border: 2px solid #3a3a3a;
+      box-shadow: 2px 2px #3a3a3a;
+      font-size: 0.85em;
+      line-height: 0.85em;
+      display: inline-block;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 3px 5px;
+      white-space: nowrap;
+  }
+  .outcomes {
+      padding: 1em;
+      border-style: dotted;
+  }
+
+  .outcomes::before {
+      content: "\2705  Learning outcomes";
+      font-weight: bold;
+  }
+  .solution {
+      display: none;
+  }
+
+  .answerspace {
+      padding: 1em;
+      border-style: solid;
+  }
+
+  .answerspace::before {
+      content: "\1f4dd Your response";
+      font-weight: bold;
+  }
+  tbody tr:nth-child(2n) {
+      background-color: lightgray;
+  }
+
+  td, th {
+      border-left: 1px solid black;
+      border-right: 1px solid black;
+  }
+  .tip::before {
+      content: "\1f481\1f3fb  Tip";
+      font-weight: bold;
+  }
+
+  .tip {
+      border-style: dotted;
+      padding: 1em;
+  }
+  .warning::before {
+      content: "\26a0\fe0f  Warning";
+      font-weight: bold;
+  }
+
+  .warning {
+      border-style: dotted;
+      padding: 1em;
+  }
+  </style>
+  <script defer=""
+  src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">COMP 3430 Assignment 1</h1>
+<p class="subtitle">File system implementation</p>
+<p class="author">Franklin Bristow</p>
+<p class="date">Winter 2025</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#description" id="toc-description">Description</a></li>
+<li><a href="#general-submission-requirements"
+id="toc-general-submission-requirements">General submission
+requirements</a></li>
+<li><a href="#not-quite-posix" id="toc-not-quite-posix">Not
+<em>quite</em> POSIX</a>
+<ul>
+<li><a href="#exfat-documentation" id="toc-exfat-documentation">exFAT
+documentation</a></li>
+<li><a href="#volumes" id="toc-volumes">Volumes</a></li>
+<li><a href="#interface" id="toc-interface">Interface</a></li>
+<li><a href="#implementation-notes"
+id="toc-implementation-notes">Implementation notes</a>
+<ul>
+<li><a href="#sectors-clusters" id="toc-sectors-clusters">Sectors ↔︎
+clusters</a></li>
+<li><a href="#root-directory-and-cluster-number-offsets"
+id="toc-root-directory-and-cluster-number-offsets">Root directory and
+cluster number offsets</a></li>
+<li><a href="#directory-entries" id="toc-directory-entries">Directory
+entries</a></li>
+<li><a href="#unicode-and-ascii" id="toc-unicode-and-ascii">Unicode and
+ASCII</a></li>
+</ul></li>
+<li><a href="#evaluation" id="toc-evaluation">Evaluation</a>
+<ul>
+<li><a href="#nqp_mount"
+id="toc-nqp_mount"><code>nqp_mount</code></a></li>
+<li><a href="#nqp_open" id="toc-nqp_open"><code>nqp_open</code></a></li>
+<li><a href="#nqp_read" id="toc-nqp_read"><code>nqp_read</code></a></li>
+<li><a href="#nqp_getdents"
+id="toc-nqp_getdents"><code>nqp_getdents</code></a></li>
+</ul></li>
+</ul></li>
+<li><a href="#submitting-your-assignment"
+id="toc-submitting-your-assignment">Submitting your assignment</a></li>
+</ul>
+</nav>
+<h1 id="description">Description</h1>
+<p>The first assignment in this course will be to write some code that
+implements an API for working with file systems. The interface that
+we’re implementing looks <a
+href="https://hyperboleandahalf.blogspot.com/2010/04/alot-is-better-than-you-at-everything.html"
+target="_blank"><em>a lot</em></a> like the <a
+href="https://pubs.opengroup.org/onlinepubs/9699919799.2008edition/mindex.html"
+target="_blank">POSIX API</a>, but it’s <em>not quite</em> POSIX.</p>
+<p><mark>Assignment 1 is due <del>Friday, February 7<sup>th</sup></del>
+Wednesday, February 12<sup>th</sup>, 2025 at 4pm.</mark></p>
+<div class="outcomes">
+<p>This assignment is assessing you on the following learning
+outcomes:</p>
+<ul>
+<li>Write code to read a file system.</li>
+</ul>
+</div>
+<h1 id="general-submission-requirements">General submission
+requirements</h1>
+<ul>
+<li>All code must compile and run on Aviary.</li>
+<li>All code must run to successful completion. Premature termination
+for any reason (no obvious output, <code>Segmentation Fault</code>,
+<code>Bus Error</code>, etc) is considered to be a solution
+implementation that does not run. For programs that are expected to
+terminate on their own (without your intervention), programs should
+complete in a reasonable amount of time (e.g., &lt;30 seconds). Code
+that does not run to successful completion is eligible to earn a maximum
+of 50% of the total score in the rubric for the assessed behaviour where
+the failure occurred.</li>
+<li>All solutions must compile. Code that does not compile will not be
+evaluated at all.</li>
+</ul>
+<p><strong>Reminder</strong>: All submitted code will be evaluated using
+an <a href="https://dickgrune.com/Programs/similarity_tester/"
+target="_blank">automated similarity testing tool</a>, alongside
+commonly available online solutions for problems and students
+submissions from past terms.</p>
+<h1 id="not-quite-posix">Not <em>quite</em> POSIX</h1>
+<div class="columns">
+<div class="column" style="width:30%;">
+<figure>
+<img src="specialman.jpg" alt="Not quite Superman." />
+<figcaption aria-hidden="true">Not <em>quite</em> Superman.</figcaption>
+</figure>
+</div><div class="column" style="width:70%;">
+<p>In this assignment you will implement an interface that looks a lot
+like POSIX (but not quite). Your implementation of this interface should
+be able to work with exFAT-formatted file systems.</p>
+<p>You will also evaluate your implementation using programs that behave
+a lot like the utilities in <a
+href="https://github.com/coreutils/coreutils" target="_blank">GNU core
+utilities</a>.</p>
+</div>
+</div>
+<h2 id="exfat-documentation">exFAT documentation</h2>
+<p>The general structure of the FAT family of file systems, with an
+emphasis on exFAT, were discussed in class.</p>
+<p>Your primary source of information about the exFAT file system format
+is Microsoft’s <a
+href="https://docs.microsoft.com/en-us/windows/win32/fileio/exfat-specification"
+target="_blank">exFAT file system specification</a>. This document
+comprehensively describes the exFAT format.</p>
+<h2 id="volumes">Volumes</h2>
+<p>A number of volumes have been prepared for you to test your
+implementation of exFAT. The volumes are intentionally designed to test
+both the “happy path” cases of the file system (e.g., a file system with
+only one very small file on it), and some more edge type cases (e.g., a
+file system where the cluster size is very small, file data and
+directory entries for folders are <a
+href="https://en.wikipedia.org/wiki/Fragmentation_(computing)"
+target="_blank">fragmented</a>).</p>
+<p>You can find the volumes in <a
+href="https://code.cs.umanitoba.ca/comp3430-winter2025/assignment1-volumes"
+target="_blank">a repository on GitLab</a>. More volumes will be added
+after the initial set are published, notifications of updates will be
+made verbally in class and also on the course web page. The graders may
+be using volumes other than these to evaluate your work. This repository
+contains instructions for creating your own volumes. You are encouraged
+to make your own volumes to test different behaviour of your
+implementation with different volumes.</p>
+<h2 id="interface">Interface</h2>
+<p>You can find both an interface and a skeleton assignment structure on
+GitLab at <a
+href="https://code.cs.umanitoba.ca/comp3430-winter2025/assignment1-template"
+class="uri"
+target="_blank">https://code.cs.umanitoba.ca/comp3430-winter2025/assignment1-template</a>.</p>
+<p>Your job is to implement the interface defined in the header file
+<code>nqp_io.h</code>. This interface describes a read-only interface
+for a file system, similar to POSIX (but not quite).</p>
+<p>A header containing exFAT-implementation-specific structures and
+values is also provided for your convenience
+(<code>nqp_exfat_types.h</code>). The <code>types</code> header file
+contains pre-defined structures for the main boot sector, directory
+entries, and identifying values for directory entries.</p>
+<h2 id="implementation-notes">Implementation notes</h2>
+<p>The <a
+href="https://docs.microsoft.com/en-us/windows/win32/fileio/exfat-specification"
+target="_blank">exFAT file system specification</a> is comprehensive and
+generally very good, but some parts of the documentation are not
+straightforward. Additionally, exFAT supports Unicode characters, and
+while that’s an excellent property of a file system, working with
+Unicode characters in C isn’t a great experience.</p>
+<p>Below is some additional information that you can use to help guide
+you through working with exFAT.</p>
+<h3 id="sectors-clusters">Sectors ↔︎ clusters</h3>
+<p>The first chunk of the file system (<a
+href="https://learn.microsoft.com/en-us/windows/win32/fileio/exfat-specification#31-main-and-backup-boot-sector-sub-regions"
+target="_blank">3.1 Main and Backup Boot Sector Sub-regions</a>) are
+organized in sectors, regardless of the number of sectors per
+cluster.</p>
+<p>The FATs are also organized in sectors, but a single FAT may span
+multiple sectors.</p>
+<p>The data heap itself is organized in <strong>clusters</strong>, which
+may or may not be the same size as a sector. Make sure that you’re using
+the right units in the right regions! You should consider writing a
+utility function or macro that quickly converts from cluster number to
+bytes or from sector number to bytes.</p>
+<h3 id="root-directory-and-cluster-number-offsets">Root directory and
+cluster number offsets</h3>
+<p>An easily overlooked statement in <a
+href="https://docs.microsoft.com/en-us/windows/win32/fileio/exfat-specification#51-cluster-heap-sub-region"
+target="_blank">5.1 Cluster Heap Sub-region</a> is</p>
+<blockquote>
+<p>Importantly, the first cluster of the Cluster Heap has index two,
+which directly corresponds to the index of <code>FatEntry[2]</code>.</p>
+</blockquote>
+<p>That means that cluster indexing is effectively a 2-based array. This
+means that if, for example, the value in the boot sector for the root
+directory is 5, then the root directory is actually stored starting at
+cluster number 3 (<span class="math inline">5 - 2 =
+3</span>).</p>
+<table style="width:54%;">
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 5%" />
+<col style="width: 5%" />
+<col style="width: 5%" />
+<col style="width: 5%" />
+<col style="width: 8%" />
+</colgroup>
+<tbody>
+<tr>
+<td>Data</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Cluster number</td>
+<td>2</td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+<td>…</td>
+</tr>
+<tr>
+<td>Actual index</td>
+<td>0</td>
+<td>1</td>
+<td>2</td>
+<td>3</td>
+<td>…</td>
+</tr>
+</tbody>
+</table>
+<h3 id="directory-entries">Directory entries</h3>
+<p>Files, directories, and some FS metadata are encoded as directory
+entries in the data heap region. The description of how to interpret
+types of directory entries is not great (what the heck does “Benign
+primary” even mean???).</p>
+<p>While you actually can figure out the specific <code>EntryType</code>
+values by building up sequences of bits for each type of
+<code>DirectoryEntry</code>, the values have been provided to you as
+constants in <code>nqp_exfat_types.h</code>.</p>
+<p>The directory entries that correspond to one single file will exist
+as <strong>three</strong> separate, but sequential directory entries
+called an entry <em>set</em>:</p>
+<ol type="1">
+<li>A file directory entry.</li>
+<li><em>Exactly 1</em> stream extension directory entry.</li>
+<li><em>At least 1</em> file name directory entry.</li>
+</ol>
+<p>You need to read all of those directory entries to be able to get the
+name of the file that you’re looking for.</p>
+<h4 id="placement-of-directory-entries">Placement of directory
+entries</h4>
+<p>Individual directory entries (like a <code>File</code> or
+<code>StreamExtension</code>) are contained entirely within one cluster,
+but an entry <em>set</em> for a single file may span multiple clusters.
+In other words, if the cluster chain for a directory has more than one
+cluster (let’s say the cluster chain is 2 → 4 → <code>null</code>), the
+file entry for a file may be in cluster 2, but the file name directory
+entry/entries may be in cluster 4.</p>
+<table style="width:95%;">
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 28%" />
+<col style="width: 13%" />
+<col style="width: 28%" />
+<col style="width: 4%" />
+<col style="width: 7%" />
+</colgroup>
+<tbody>
+<tr>
+<td>Cluster number</td>
+<td>2</td>
+<td>3</td>
+<td>4</td>
+<td>5</td>
+<td>…</td>
+</tr>
+<tr>
+<td>Data</td>
+<td><ul>
+<li>1 <code>File</code></li>
+<li>1 <code>StreamExtension</code></li>
+<li>1 <code>FileName</code></li>
+<li>2 <code>File</code></li>
+<li>2 <code>StreamExtension</code></li>
+<li>2 <code>FileName</code></li>
+<li>3 <code>File</code></li>
+</ul></td>
+<td>Data for file #1.</td>
+<td><ul>
+<li>3 <code>StreamExtension</code></li>
+<li>3 <code>FileName</code></li>
+<li>4 <code>File</code></li>
+<li>4 <code>StreamExtension</code></li>
+<li>4 <code>FileName</code></li>
+<li>END-OF-DIRECTORY</li>
+<li>END-OF-DIRECTORY</li>
+</ul></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="unicode-and-ascii">Unicode and ASCII</h3>
+<p>Many fields in this file system are defined as <strong>16-bit
+Unicode</strong> strings. That means that characters are 16 bits wide
+instead of 8 bits wide. Provided that your Unicode string consists only
+of <a href="https://en.wikipedia.org/wiki/ASCII"
+target="_blank">ASCII</a> characters (so unfortunately لا أتحدث اللغة
+العربية, 沒有中文, ਕੋਈ ਪੰਜਾਬੀ ਨਹੀਂ, and no emoji <span class="emoji"
+data-emoji="t-rex">🦖</span>), you can trivially convert a Unicode
+string into a regular C string by stripping off the top 8 bits. The
+template code has a function called <code>unicode2ascii</code> that
+implements this approach.</p>
+<h2 id="evaluation">Evaluation</h2>
+<p><strong>The total number of points eligible to be awarded is 30
+points</strong>.</p>
+<p>Assessment for this assignment is based on the implementation of
+functions defined in the interface <code>nqp_io.h</code>.</p>
+<p>The grading team will have some latitude within the levels of rubrics
+to make adjustments as appropriate (e.g., an implementation that
+implements functionality completely up to the criteria for the top
+level, but does not adequately have minimal design by contract and
+defensive programming constructs might be assigned the top level, but
+with a score deduction of -1 to -2 points).</p>
+<h3 id="nqp_mount"><code>nqp_mount</code></h3>
+<table>
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 85%" />
+</colgroup>
+<thead>
+<tr>
+<th>Level</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>0</p>
+<p>0 points.</p></td>
+<td><code>nqp_mount</code> is not implemented, or does not meet the
+criteria for level 1.</td>
+</tr>
+<tr>
+<td><p>1</p>
+<p>1 point.</p></td>
+<td><p><code>nqp_mount</code> is implemented and:</p>
+<ul>
+<li>Has appropriate minimal design by contract and defensive programming
+constructs (e.g., checks for <code>NULL</code>, validating output from
+<code>open</code>, etc).</li>
+<li>Appropriately opens the file system image for reading.</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>2</p>
+<p>3 points.</p></td>
+<td><p><code>nqp_mount</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 1.</li>
+<li>Completes basic file system checks on opening the file system image
+and responds accordingly when the file system is not in a consistent
+state.</li>
+</ul>
+<p>Specifically checks the <code>BootSignature</code> field in the main
+boot sector, returns <code>NQP_FSCK_FAIL</code> if the value is not the
+expected value.</p></td>
+</tr>
+<tr>
+<td><p>3</p>
+<p>5 points.</p></td>
+<td><p><code>nqp_mount</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 2.</li>
+<li>Completes a more comprehensive file system checks on opening the
+file system image and responds accordingly when the file system is not
+in a consistent state.</li>
+</ul>
+<p>Specifically checks the following fields for validity</p>
+<ul>
+<li><code>FileSystemName</code></li>
+<li><code>MustBeZero</code></li>
+<li><code>FirstClusterOfRootDirectory</code></li>
+</ul></td>
+</tr>
+</tbody>
+</table>
+<h3 id="nqp_open"><code>nqp_open</code></h3>
+<p>The level achieved in this function affects the achievable levels for
+<code>nqp_read</code>, specifically related to opening and reading
+multiple files at the same time.</p>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 83%" />
+</colgroup>
+<thead>
+<tr>
+<th>Level</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>0</p>
+<p>0 points.</p></td>
+<td><code>nqp_open</code> is not implemented, or does not meet the
+criteria for level 1.</td>
+</tr>
+<tr>
+<td><p>1</p>
+<p>3 points.</p></td>
+<td><p><code>nqp_open</code> is implemented and:</p>
+<ul>
+<li>Has appropriate minimal design by contract and defensive programming
+constructs (e.g., checks for <code>NULL</code>, validating that a file
+system is mounted before calling).</li>
+<li>Is able to find a file in the root directory by name in a file
+system image where the directory entry set is fully contained within the
+first cluster of the root directory.</li>
+<li>Responds appropriately when the specified file name is not
+found.</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>2</p>
+<p>5 points.</p></td>
+<td><p><code>nqp_open</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 1.</li>
+<li>Is able to find a file in a subdirectory by name in a file system
+image where directory entry sets for a directory are fully contained
+within a single cluster (i.e., the root directory is contained within a
+single cluster, the subdirectory is fully contained within its own
+single cluster).</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>3</p>
+<p>8 points.</p></td>
+<td><p><code>nqp_open</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 2.</li>
+<li>Is able to find a file in a directory or subdirectory by name in a
+file system image where directory entry sets for a directory are
+<strong>not</strong> fully contained within a single cluster (i.e., the
+root directory or other directories in the path have more directory
+entries than fit in a single cluster, and are located in non-contiguous
+clusters).</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>4</p>
+<p>10 points.</p></td>
+<td><p><code>nqp_open</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 3.</li>
+<li>Is able to be called multiple times to open multiple files in the
+file system simultaneously (i.e., minimally implements an open file
+table to represent different open files.).</li>
+<li>Has minimal, appropriate design by contract and defensive
+programming constructs specifically related to the open file table
+implementation (e.g., invariants for the entire table, invariants for
+individual entries in the table).</li>
+</ul></td>
+</tr>
+</tbody>
+</table>
+<h3 id="nqp_read"><code>nqp_read</code></h3>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 83%" />
+</colgroup>
+<thead>
+<tr>
+<th>Level</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>0</p>
+<p>0 points.</p></td>
+<td><code>nqp_read</code> is not implemented, or does not meet the
+criteria for level 1.</td>
+</tr>
+<tr>
+<td><p>1</p>
+<p>3 points.</p></td>
+<td><p><code>nqp_read</code> is implemented and:</p>
+<ul>
+<li>Has appropriate minimal design by contract and defensive programming
+constructs (e.g., checks for <code>NULL</code>, validating that a file
+system is mounted before calling).</li>
+<li>Is able to read data for a file when the file consists of a single
+cluster, and the request for read is ≤ the cluster size.</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>2</p>
+<p>5 points.</p></td>
+<td><p><code>nqp_read</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 1.</li>
+<li>Is able to read data for a file when the file consists of many
+contiguous clusters and the request for read is &gt; the cluster
+size.</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>3</p>
+<p>8 points.</p></td>
+<td><p><code>nqp_read</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 2.</li>
+<li>Is able to read data for a file when the file consists of many
+<strong>non-contiguous</strong> clusters and the request for read is
+&gt; the cluster size (i.e., a FAT chain for the file
+<strong>must</strong> be constructed to get all the file’s data).</li>
+<li>Is able to read data from a file when multiple calls are made to
+<code>nqp_read</code>. A full implementation of an open file table is
+not required to achieve this level (i.e., <code>nqp_read</code> will
+only be called on a single file descriptor).</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>4</p>
+<p>10 points.</p></td>
+<td><p><code>nqp_read</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 3.</li>
+<li>Adequately meets most or all of the criteria for level 4 of
+<code>nqp_open</code> (i.e., a minimal open file table is
+implemented).</li>
+<li>Is able to read data from multiple open files where reads for the
+files are interleaved (e.g., read for file A, then file B, then file A,
+then file B, …).</li>
+</ul></td>
+</tr>
+</tbody>
+</table>
+<h3 id="nqp_getdents"><code>nqp_getdents</code></h3>
+<table>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 84%" />
+</colgroup>
+<thead>
+<tr>
+<th>Level</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>0</p>
+<p>0 points.</p></td>
+<td><code>nqp_getdents</code> is not implemented, or does not meet the
+criteria for level 1.</td>
+</tr>
+<tr>
+<td><p>1</p>
+<p>2 points.</p></td>
+<td><p><code>nqp_getdents</code> is implemented and:</p>
+<ul>
+<li>Has appropriate minimal design by contract and defensive programming
+constructs (e.g., checks for <code>NULL</code>, validating that a file
+system is mounted before calling).</li>
+<li>Is able to return the directory entries for the root directory when
+the root directory is limited to a single cluster.</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>2</p>
+<p>3 points.</p></td>
+<td><p><code>nqp_getdents</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 1.</li>
+<li>Appropriately checks that the passed file descriptor refers to a
+directory.</li>
+<li>Is able to return the directory entries for a directory other than
+the root directory (i.e., a subdirectory) where the directory is limited
+to a single cluster.</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>3</p>
+<p>4 points.</p></td>
+<td><p><code>nqp_getdents</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 2.</li>
+<li>Is able to return directory entries for any directory when the
+directory entries for the directory span multiple non-contiguous
+clusters.</li>
+<li>Is able to return directory entries when multiple calls are made to
+<code>nqp_getdents</code>. A full implementation of an open file table
+is not required to achieve this level (i.e., <code>nqp_getdents</code>
+will only be called on a single file descriptor).</li>
+</ul></td>
+</tr>
+<tr>
+<td><p>4</p>
+<p>5 points.</p></td>
+<td><p><code>nqp_getdents</code> is implemented and:</p>
+<ul>
+<li>Adequately meets most or all of the criteria for level 3.</li>
+<li>The open file table has been modified to support directories (if
+necessary).</li>
+<li>Is able to return directory entries for different directories when
+called with different file descriptors (e.g., read some entries for
+directory A, then some for directory B, then some for directory A,
+then…).</li>
+</ul></td>
+</tr>
+</tbody>
+</table>
+<h1 id="submitting-your-assignment">Submitting your assignment</h1>
+<p>Submissions will be made using the <code>handin</code> command
+available on all CS UNIX systems.</p>
+<p>You should be submitting <em>at least</em> the following files:</p>
+<ul>
+<li>A <code>Makefile</code>.</li>
+<li>A <code>README.md</code> that includes a summary of how to compile
+and run your program (compiling <em>should</em> be “run
+<code>make</code>”, but you should tell the grader how to run your
+program, e.g., what arguments to pass to the program on the command
+line).</li>
+<li>Your implementation of exFAT.</li>
+</ul>
+<p>Assuming you started from the template, all of these files are there,
+though you should make changes to your <code>README.md</code> with your
+own information.</p>
+<p>Please <strong>do not</strong> include any disk images in your
+submission.</p>
+<p>If your files are in a folder named <code>my_a1</code>, you would run
+the command:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">handin</span> 3430 assignment1 my_a1</span></code></pre></div>
+<p>If you need more information, you can see <code>man handin</code> or
+take a look at <a
+href="https://toolsntechniques.ca/topic02/topic-6.html"
+target="_blank">the <code>handin</code> chapter in the Intro to Tools
+and Techniques in CS textbook</a>.</p>
+</body>
+</html>
