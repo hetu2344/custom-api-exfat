@@ -13,5 +13,11 @@ int main(int argc, char **argv) {
     (void)argc;
     (void)err;
     assert(err == NQP_OK);
+    err = nqp_unmount();
+    assert(err == NQP_OK);
+    err = nqp_mount(argv[2], NQP_FS_EXFAT);
+    assert(err == NQP_OK);
+    err = nqp_unmount();
+    assert(err == NQP_OK);
     return EXIT_SUCCESS;
 }

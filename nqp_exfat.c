@@ -123,7 +123,7 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     if (err == NQP_OK) {
         mounted_fs = malloc(sizeof(char) * strlen(source) + 1); // 1 for \0 char
         strcpy(mounted_fs, source);
-        printf("Current mounted file system is \"%s\"\n", mounted_fs);
+        // printf("Current mounted file system is \"%s\"\n", mounted_fs);
         return NQP_OK;
     } else {
         if (mounted_fs != NULL) {
@@ -134,7 +134,16 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     }
 }
 
-nqp_error nqp_unmount(void) { return NQP_INVAL; }
+nqp_error nqp_unmount(void) {
+    if (mounted_fs == NULL) {
+        return NQP_INVAL;
+    } else {
+        // printf("File system unmounted\n");
+        free(mounted_fs);
+        mounted_fs = NULL;
+        return NQP_OK;
+    }
+}
 
 int nqp_open(const char *pathname) {
     (void)pathname;
