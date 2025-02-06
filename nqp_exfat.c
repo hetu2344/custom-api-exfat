@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -54,13 +55,43 @@ void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
     assert(fs_type == NQP_FS_TYPES || fs_type == NQP_FS_EXFAT);
 }
 
+nqp_error validate_main_boot_region(main_boot_record mbr) {
+
+    // checking the boot signature is 0xAA55 or not
+    if (mbr.boot_signature != BOOT_SIGNATURE) {
+        return NQP_FSCK_FAIL;
+    }
+
+    return NQP_OK;
+}
+
 nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     (void)source;
     (void)fs_type;
 
     // pre-conditions
     nqp_mount_pre(source, fs_type);
-    return NQP_INVAL;
+
+    // open the file system
+    if (source == NULL) {
+        return NQP_INVAL;
+    }
+
+    if (fs_type != NQP_FS_TYPES && fs_type != NQP_FS_EXFAT) {
+        return NQP_UNSUPPORTED_FS;
+    }
+
+    int fd = open(source, O_RDONLY);
+
+    if (fd == -1) {
+        printf("Error opening %s\n", source);
+        return NQP_FILE_NOT_FOUND;
+    }
+
+    main_boot_record mbr = {0};
+    read(fd, &mbr, 512);
+
+    return validate_main_boot_region(mbr);
 }
 
 nqp_error nqp_unmount(void) { return NQP_INVAL; }
