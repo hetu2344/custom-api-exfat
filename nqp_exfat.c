@@ -50,11 +50,15 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
     return ascii_string;
 }
 
+char *mounted_fs = NULL;
+
 // preconditions for the mount function
 void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
     assert(source != NULL);
 
     assert(fs_type == NQP_FS_TYPES || fs_type == NQP_FS_EXFAT);
+
+    assert(mounted_fs == NULL);
 }
 
 // function to validate the contents of Main Boot Region
@@ -71,7 +75,7 @@ nqp_error validate_main_boot_region(main_boot_record mbr) {
 
     // Checking for 53 must be zero bits
     for (uint8_t i = 0; i < 53; i++) {
-        printf("must_be_zero[%d] = %u\n", i, mbr.must_be_zero[i]);
+        // printf("must_be_zero[%d] = %u\n", i, mbr.must_be_zero[i]);
         if (mbr.must_be_zero[i] != 0) {
             return NQP_FSCK_FAIL;
         }
@@ -114,7 +118,20 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     main_boot_record mbr = {0};
     read(fd, &mbr, 512);
 
-    return validate_main_boot_region(mbr);
+    nqp_error err = validate_main_boot_region(mbr);
+
+    if (err == NQP_OK) {
+        mounted_fs = malloc(sizeof(char) * strlen(source) + 1); // 1 for \0 char
+        strcpy(mounted_fs, source);
+        printf("Current mounted file system is \"%s\"\n", mounted_fs);
+        return NQP_OK;
+    } else {
+        if (mounted_fs != NULL) {
+            free(mounted_fs);
+            mounted_fs = NULL;
+        }
+        return err;
+    }
 }
 
 nqp_error nqp_unmount(void) { return NQP_INVAL; }
