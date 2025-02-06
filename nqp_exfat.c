@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -49,18 +50,40 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
     return ascii_string;
 }
 
+// preconditions for the mount function
 void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
     assert(source != NULL);
 
     assert(fs_type == NQP_FS_TYPES || fs_type == NQP_FS_EXFAT);
 }
 
+// function to validate the contents of Main Boot Region
 nqp_error validate_main_boot_region(main_boot_record mbr) {
 
     // checking the boot signature is 0xAA55 or not
     if (mbr.boot_signature != BOOT_SIGNATURE) {
         return NQP_FSCK_FAIL;
     }
+
+    if (strcmp(mbr.fs_name, "EXFAT   ") != 0) {
+        return NQP_FSCK_FAIL;
+    }
+
+    // Checking for 53 must be zero bits
+    for (uint8_t i = 0; i < 53; i++) {
+        printf("must_be_zero[%d] = %u\n", i, mbr.must_be_zero[i]);
+        if (mbr.must_be_zero[i] != 0) {
+            return NQP_FSCK_FAIL;
+        }
+    }
+
+    // Checking for the reange of first cluster of the root directory
+    if (mbr.first_cluster_of_root_directory < 2 ||
+        mbr.first_cluster_of_root_directory > mbr.cluster_count + 1) {
+        return NQP_FSCK_FAIL;
+    }
+    printf("First cluster of root directory: %u\n",
+           mbr.first_cluster_of_root_directory);
 
     return NQP_OK;
 }
