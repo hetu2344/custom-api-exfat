@@ -50,7 +50,10 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
     return ascii_string;
 }
 
-char *mounted_fs = NULL;
+static char *mounted_fs = NULL;
+static main_boot_record *mbr = NULL;
+static int bypes_per_sector = 0;
+static int sectors_per_clustor = 0;
 
 // preconditions for the mount function
 void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
@@ -63,7 +66,6 @@ void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
 
 // function to validate the contents of Main Boot Region
 nqp_error validate_main_boot_region(main_boot_record mbr) {
-
     // checking the boot signature is 0xAA55 or not
     if (mbr.boot_signature != BOOT_SIGNATURE) {
         return NQP_FSCK_FAIL;
@@ -86,8 +88,8 @@ nqp_error validate_main_boot_region(main_boot_record mbr) {
         mbr.first_cluster_of_root_directory > mbr.cluster_count + 1) {
         return NQP_FSCK_FAIL;
     }
-    printf("First cluster of root directory: %u\n",
-           mbr.first_cluster_of_root_directory);
+    // printf("First cluster of root directory: %u\n",
+    // mbr.first_cluster_of_root_directory);
 
     return NQP_OK;
 }
@@ -115,20 +117,26 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
         return NQP_FILE_NOT_FOUND;
     }
 
-    main_boot_record mbr = {0};
-    read(fd, &mbr, 512);
+    mbr = malloc(sizeof(*mbr));
 
-    nqp_error err = validate_main_boot_region(mbr);
+    read(fd, mbr, 512);
+    nqp_error err = validate_main_boot_region(*mbr);
 
     if (err == NQP_OK) {
         mounted_fs = malloc(sizeof(char) * strlen(source) + 1); // 1 for \0 char
         strcpy(mounted_fs, source);
+        bypes_per_sector = 1 << mbr->bytes_per_sector_shift;
+        sectors_per_clustor = 1 << mbr->sectors_per_cluster_shift;
         // printf("Current mounted file system is \"%s\"\n", mounted_fs);
         return NQP_OK;
     } else {
         if (mounted_fs != NULL) {
             free(mounted_fs);
             mounted_fs = NULL;
+        }
+        if (mbr != NULL) {
+            free(mbr);
+            mbr = NULL;
         }
         return err;
     }
@@ -137,18 +145,31 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
 nqp_error nqp_unmount(void) {
     if (mounted_fs == NULL) {
         return NQP_INVAL;
-    } else {
-        // printf("File system unmounted\n");
-        free(mounted_fs);
-        mounted_fs = NULL;
-        return NQP_OK;
     }
+
+    if (mbr == NULL) {
+        return NQP_INVAL;
+    }
+    // printf("File system unmounted\n");
+    free(mounted_fs);
+    mounted_fs = NULL;
+    free(mbr);
+    mbr = NULL;
+    return NQP_OK;
 }
 
 int nqp_open(const char *pathname) {
-    (void)pathname;
+    if (pathname == NULL) {
+        return NQP_INVAL;
+    }
 
-    return NQP_INVAL;
+    if (mounted_fs == NULL) {
+        return -1;
+    }
+
+    static int fd = 3;
+
+    return fd;
 }
 
 int nqp_close(int fd) {
