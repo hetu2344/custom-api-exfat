@@ -73,19 +73,22 @@ typedef struct CLUSTER_CHAIN_NODE cluster_chain_node;
 
 void add_cluster_to_chain(cluster_chain *chain, int cluster) {
 
-    cluster_chain_node *head = chain->head;
-    cluster_chain_node *last = chain->last;
-    if (head == NULL) {
-        head = malloc(sizeof(cluster_chain_node));
-        head->cluster = cluster;
-        head->next = NULL;
-        last = head;
+    cluster_chain_node *new_node = malloc(sizeof(cluster_chain_node));
+    if (new_node == NULL) {
+        // Handle memory allocation failure
+        return;
+    }
 
+    new_node->cluster = cluster;
+    new_node->next = NULL;
+
+    if (chain->head == NULL) {
+        // First node in the chain
+        chain->head = new_node;
+        chain->last = new_node;
     } else {
-        cluster_chain_node *new_node = malloc(sizeof(cluster_chain_node));
-        new_node->cluster = cluster;
-        new_node->next = NULL;
-        last->next = new_node;
+        // Append to the end of the chain
+        chain->last->next = new_node;
         chain->last = new_node;
     }
 }
@@ -143,7 +146,7 @@ nqp_error validate_main_boot_region(main_boot_record mbr) {
 nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     (void)source;
     (void)fs_type;
-
+    printf("nqp_mount called\n");
     // pre-conditions
     nqp_mount_pre(source, fs_type);
 
@@ -157,11 +160,14 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     }
 
     int fd = open(source, O_RDONLY);
+    printf("fd = %d\n", fd);
 
+    printf("error before fd check\n");
     if (fd == -1) {
         printf("Error opening %s\n", source);
         return NQP_FILE_NOT_FOUND;
     }
+    printf("after fd error check\n");
 
     mbr = malloc(sizeof(*mbr));
 
@@ -210,6 +216,7 @@ nqp_error nqp_unmount(void) {
 }
 
 void build_cluster_chain(cluster_chain *chain, int first_cluster) {
+    printf("build_cluster_chain called\n");
     add_cluster_to_chain(chain, first_cluster);
 
     uint32_t fat_value = 0;
@@ -227,6 +234,7 @@ void build_cluster_chain(cluster_chain *chain, int first_cluster) {
 }
 
 int nqp_open(const char *pathname) {
+    printf("nqp_open called\n");
     if (pathname == NULL) {
         return NQP_INVAL;
     }
@@ -237,6 +245,16 @@ int nqp_open(const char *pathname) {
 
     static int fd = 3;
 
+    cluster_chain *chain = malloc(sizeof(cluster_chain));
+    build_cluster_chain(chain, mbr->first_cluster_of_root_directory);
+    cluster_chain_node *current = chain->head;
+    while (current != NULL) {
+        printf("%d --> ", current->cluster);
+        current = current->next;
+    }
+    printf("NULL\n");
+
+    printf("nqp_open returned");
     return fd;
 }
 
