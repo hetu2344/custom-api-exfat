@@ -52,8 +52,54 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
 
 static char *mounted_fs = NULL;
 static main_boot_record *mbr = NULL;
-static int bypes_per_sector = 0;
-static int sectors_per_clustor = 0;
+static uint32_t bytes_per_sector = 0;
+static uint32_t sectors_per_clustor = 0;
+static uint32_t fat_offset_bytes = 0;
+static uint32_t cluster_heap_offset_bytes = 0;
+static int fs_fd = -1;
+
+struct CLUSTER_CHAIN_NODE {
+    int cluster;
+    struct CLUSTER_CHAIN_NODE *next;
+};
+
+struct CLUSTER_CHAIN {
+    struct CLUSTER_CHAIN_NODE *head;
+    struct CLUSTER_CHAIN_NODE *last;
+};
+
+typedef struct CLUSTER_CHAIN cluster_chain;
+typedef struct CLUSTER_CHAIN_NODE cluster_chain_node;
+
+void add_cluster_to_chain(cluster_chain *chain, int cluster) {
+
+    cluster_chain_node *head = chain->head;
+    cluster_chain_node *last = chain->last;
+    if (head == NULL) {
+        head = malloc(sizeof(cluster_chain_node));
+        head->cluster = cluster;
+        head->next = NULL;
+        last = head;
+
+    } else {
+        cluster_chain_node *new_node = malloc(sizeof(cluster_chain_node));
+        new_node->cluster = cluster;
+        new_node->next = NULL;
+        last->next = new_node;
+        chain->last = new_node;
+    }
+}
+
+void free_cluster_chain(cluster_chain *chain) {
+    cluster_chain_node *current = chain->head;
+    cluster_chain_node *temp = NULL;
+    while (current != NULL) {
+        temp = current;
+        current = current->next;
+        free(temp);
+    }
+    free(chain);
+}
 
 // preconditions for the mount function
 void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
@@ -125,8 +171,11 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
     if (err == NQP_OK) {
         mounted_fs = malloc(sizeof(char) * strlen(source) + 1); // 1 for \0 char
         strcpy(mounted_fs, source);
-        bypes_per_sector = 1 << mbr->bytes_per_sector_shift;
+        bytes_per_sector = 1 << mbr->bytes_per_sector_shift;
         sectors_per_clustor = 1 << mbr->sectors_per_cluster_shift;
+        fat_offset_bytes = mbr->fat_offset * (bytes_per_sector);
+        cluster_heap_offset_bytes = mbr->cluster_heap_offset * bytes_per_sector;
+        fs_fd = fd;
         // printf("Current mounted file system is \"%s\"\n", mounted_fs);
         return NQP_OK;
     } else {
@@ -138,6 +187,7 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
             free(mbr);
             mbr = NULL;
         }
+        fs_fd = -1;
         return err;
     }
 }
@@ -155,7 +205,25 @@ nqp_error nqp_unmount(void) {
     mounted_fs = NULL;
     free(mbr);
     mbr = NULL;
+    fs_fd = -1;
     return NQP_OK;
+}
+
+void build_cluster_chain(cluster_chain *chain, int first_cluster) {
+    add_cluster_to_chain(chain, first_cluster);
+
+    uint32_t fat_value = 0;
+    off_t lseek_offset = fat_offset_bytes * (first_cluster - 1) * 4;
+    lseek(fs_fd, lseek_offset, SEEK_SET);
+
+    // We are at the fat cluster first_cluster
+    // Now we will read 4 bytes till 0xffffffff is not fount and build up the cluster chain
+    read(fs_fd, &fat_value, 4);
+
+    while (fat_value != 0xFFFFFFFF) {
+        add_cluster_to_chain(chain, fat_value);
+        read(fs_fd, &fat_value, 4);
+    }
 }
 
 int nqp_open(const char *pathname) {
