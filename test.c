@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
     nqp_error err = nqp_mount(argv[1], NQP_FS_EXFAT);
     (void)argc;
     (void)err;
-    int fd = nqp_open("assignment1-template/de");
+    int fd = nqp_open("assignment1-template/");
 
     printf("fd = %d\n", fd);
     // assert(err == NQP_OK);

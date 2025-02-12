@@ -51,6 +51,17 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
     return ascii_string;
 }
 
+typedef struct OPEN_FILE_TABLE_ENTRY {
+    uint32_t file_fd;
+    entry_set file_entry_set;
+    uint32_t file_offset;
+} oft_e;
+
+typedef struct OPEN_FILE_TABLE {
+    oft_e *entries;
+    uint32_t add_index;
+} oft;
+
 static char *mounted_fs = NULL;
 static main_boot_record *mbr = NULL;
 static uint32_t bytes_per_sector = 0;
@@ -59,14 +70,14 @@ static uint32_t fat_offset_bytes = 0;
 static uint32_t cluster_heap_offset_bytes = 0;
 static uint32_t size_of_cluster = 0;
 static uint32_t directory_entry_per_cluster = 0;
-static int fs_fd = -1;
+static oft *table = NULL;
 
 struct CLUSTER_CHAIN_NODE {
     int cluster;
     struct CLUSTER_CHAIN_NODE *next;
 };
 
-typedef struct {
+typedef struct ENTRY_SET_LIST {
     entry_set *data;
     uint32_t add_index;
     uint32_t capacity;
@@ -80,6 +91,28 @@ struct CLUSTER_CHAIN {
 
 typedef struct CLUSTER_CHAIN cluster_chain;
 typedef struct CLUSTER_CHAIN_NODE cluster_chain_node;
+
+oft *init_open_file_table(void) {
+    oft *table = malloc(sizeof(oft));
+    table->add_index = 0;
+    table->entries = malloc(sizeof(oft_e) * MAX_OPEN_FILES);
+    return table;
+}
+
+void add_to_open_file_table(oft *table, oft_e entry) {
+    table->entries[table->add_index] = entry;
+    table->add_index++;
+}
+
+oft_e *find_oft_e(oft *table, uint32_t fd) {
+    for (uint32_t i = 0; i < table->add_index; i++) {
+        if (table->entries[i].file_fd == fd) {
+            return &table->entries[i];
+        }
+    }
+
+    return NULL;
+}
 
 void resize_entry_set_list(entry_set_list *list) {
     uint32_t new_capacity = list->capacity * 2;
@@ -126,34 +159,40 @@ entry_set *get_entry_set(entry_set_list *list, int index) {
 }
 
 char **split(const char *string, const char split_char) {
-    // printf("<SPLIT> str recv: %s\n", string);
     int length = strlen(string);
 
     int num_words = 0;
 
+    // Count occurrences of split_char to determine the number of words
     for (int i = 0; i < length; i++) {
         if (string[i] == split_char) {
             num_words++;
         }
     }
 
-    num_words++;
+    num_words++; // Account for the last word
 
-    // adding extra space to append the NULL at end
+    // Allocate space for array of words (+1 for NULL termination)
     char **split_ary = (char **)malloc((num_words + 1) * sizeof(char *));
 
     char *copy = strdup(string);
-    char *word;
 
-    word = strtok(copy, (char[]){split_char, '\0'});
+    char *word = strtok(copy, (char[]){split_char, '\0'});
+
     for (int i = 0; i < num_words; i++) {
-        split_ary[i] = (char *)malloc(sizeof(char) * (strlen(word) + 1));
-        // printf("Adding %s\n", word);
+        if (word == NULL) {
+            split_ary[i] = NULL; // Avoid accessing NULL
+            break;
+        }
+
+        split_ary[i] = (char *)malloc(strlen(word) + 1);
+
         strcpy(split_ary[i], word);
-        word = strtok(NULL, (char[]){split_char, '\0'});
+        word = strtok(NULL, (char[]){split_char, '\0'}); // Get next token
     }
 
-    split_ary[num_words] = NULL;
+    split_ary[num_words] = NULL; // Null-terminate the array
+    free(copy);                  // Free the duplicated string
 
     return split_ary;
 }
@@ -286,9 +325,9 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
         // printf("fat_offset_bytes = %d\n fat_offset = %d\n", fat_offset_bytes,
         // mbr->fat_offset);
         cluster_heap_offset_bytes = mbr->cluster_heap_offset * bytes_per_sector;
-        fs_fd = fd;
         size_of_cluster = bytes_per_sector * sectors_per_clustor;
         directory_entry_per_cluster = size_of_cluster / 32;
+        table = init_open_file_table();
         // printf("size of cluster = %d\n", size_of_cluster);
         // printf("active FAT = %o\n", mbr->fs_flags);
         // printf("Current mounted file system is \"%s\"\n", mounted_fs);
@@ -302,25 +341,26 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
             free(mbr);
             mbr = NULL;
         }
-        fs_fd = -1;
+        if (table != NULL) {
+            free(table);
+            table = NULL;
+        }
         return err;
     }
 }
 
 nqp_error nqp_unmount(void) {
-    if (mounted_fs == NULL) {
+    if (mounted_fs == NULL || mbr == NULL || table == NULL) {
         return NQP_INVAL;
     }
 
-    if (mbr == NULL) {
-        return NQP_INVAL;
-    }
-    // printf("File system unmounted\n");
     free(mounted_fs);
     mounted_fs = NULL;
     free(mbr);
     mbr = NULL;
-    fs_fd = -1;
+    free(table);
+    table = NULL;
+
     return NQP_OK;
 }
 
@@ -338,7 +378,6 @@ void build_cluster_chain(cluster_chain *chain, int first_cluster) {
 
     // We are at the fat cluster first_cluster
     // Now we will read 4 bytes till 0xffffffff is not fount and build up the cluster chain
-    // printf("fd_fd = %d\n", fs_fd);
     read(fd, &fat_value, 4);
     // printf("fat_value = %d\n", fat_value);
 
@@ -368,48 +407,38 @@ void fill_entry_set_list_no_fat_chain(int cluster, entry_set_list *list) {
     // printf("lseek_offset = %d\n", lseek_offset);
     lseek(fd, lseek_offset, SEEK_SET);
 
-    uint8_t prev_entry_type = 0;
     uint8_t filenames_index = 0;
     read(fd, &read_de, 32);
-    prev_entry_type = read_de.entry_type;
     while (read_de.entry_type != 0x00) {
         // printf("entry_type = 0x%02X\n", read_de.entry_type);
 
-        // if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
-        if (es.num_filenames != -1) {
-            add_entry_set(list, es);
-        }
-        es.file = read_de.file;
-        /*} else */ if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
+        if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
+            if (es.num_filenames > 0) {
+                add_entry_set(list, es);
+            }
+            memset(&es, 0, sizeof(entry_set));
+            es.file = read_de.file;
+            es.num_filenames = 0;
+
+        } else if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
             es.stream_extension = read_de.stream_extension;
             es.filename =
                 malloc((sizeof(char) * es.stream_extension.name_length) + 1);
         } else if (read_de.entry_type == FILE_NAME_DIRECTORY_ENTRY) {
-            if (prev_entry_type == FILE_NAME_DIRECTORY_ENTRY) {
-                es.filenames[filenames_index] = read_de.file_name;
-                es.num_filenames = es.num_filenames + 1;
-
-                unicode2ascii_str =
-                    unicode2ascii(es.filenames[filenames_index].file_name, 15);
-                strcat(es.filename, unicode2ascii_str);
-                free(unicode2ascii_str);
-
-                filenames_index++;
-            } else {
-                es.filenames = malloc(sizeof(file_name) * 17);
-                filenames_index = 0;
-                es.filenames[filenames_index] = read_de.file_name;
-                es.num_filenames = 1;
-
-                unicode2ascii_str =
-                    unicode2ascii(es.filenames[filenames_index].file_name, 15);
-                strcat(es.filename, unicode2ascii_str);
-                free(unicode2ascii_str);
-
-                filenames_index++;
+            if (es.num_filenames == 0) {
+                es.filenames = malloc(sizeof(file_name) *
+                                      17); // Allocate memory for filename parts
             }
+
+            es.filenames[filenames_index] = read_de.file_name;
+            es.num_filenames++;
+
+            unicode2ascii_str = unicode2ascii(read_de.file_name.file_name, 15);
+            strcat(es.filename, unicode2ascii_str);
+            free(unicode2ascii_str);
+
+            filenames_index++;
         }
-        prev_entry_type = read_de.entry_type;
         read(fd, &read_de, 32);
     }
     // printf("index = %d\n", index);
@@ -433,46 +462,35 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
     lseek(fd, lseek_offset, SEEK_SET);
 
     uint32_t index = 1;
-    uint8_t prev_entry_type = 0;
     uint8_t filenames_index = 0;
     read(fd, &read_de, 32);
-    prev_entry_type = read_de.entry_type;
     while (current != NULL && read_de.entry_type != 0x00) {
-        // printf("entry_type = 0x%02X\n", read_de.entry_type);
+        if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
+            if (es.num_filenames > 0) {
+                add_entry_set(list, es);
+            }
+            memset(&es, 0, sizeof(entry_set));
+            es.file = read_de.file;
+            es.num_filenames = 0;
 
-        // if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
-        if (es.num_filenames != -1) {
-            add_entry_set(list, es);
-        }
-        es.file = read_de.file;
-        /*} else */ if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
+        } else if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
             es.stream_extension = read_de.stream_extension;
             es.filename =
                 malloc((sizeof(char) * es.stream_extension.name_length) + 1);
         } else if (read_de.entry_type == FILE_NAME_DIRECTORY_ENTRY) {
-            if (prev_entry_type == FILE_NAME_DIRECTORY_ENTRY) {
-                es.filenames[filenames_index] = read_de.file_name;
-                es.num_filenames = es.num_filenames + 1;
-
-                unicode2ascii_str =
-                    unicode2ascii(es.filenames[filenames_index].file_name, 15);
-                strcat(es.filename, unicode2ascii_str);
-                free(unicode2ascii_str);
-
-                filenames_index++;
-            } else {
-                es.filenames = malloc(sizeof(file_name) * 17);
-                filenames_index = 0;
-                es.filenames[filenames_index] = read_de.file_name;
-                es.num_filenames = 1;
-
-                unicode2ascii_str =
-                    unicode2ascii(es.filenames[filenames_index].file_name, 15);
-                strcat(es.filename, unicode2ascii_str);
-                free(unicode2ascii_str);
-
-                filenames_index++;
+            if (es.num_filenames == 0) {
+                es.filenames = malloc(sizeof(file_name) *
+                                      17); // Allocate memory for filename parts
             }
+
+            es.filenames[filenames_index] = read_de.file_name;
+            es.num_filenames++;
+
+            unicode2ascii_str = unicode2ascii(read_de.file_name.file_name, 15);
+            strcat(es.filename, unicode2ascii_str);
+            free(unicode2ascii_str);
+
+            filenames_index++;
         }
 
         if (index % directory_entry_per_cluster == 0) {
@@ -483,7 +501,6 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
                             sectors_per_clustor);
             lseek(fd, lseek_offset, SEEK_SET);
         }
-        prev_entry_type = read_de.entry_type;
         read(fd, &read_de, 32);
         index++;
     }
@@ -564,7 +581,6 @@ entry_set *find_file_in_system(const char *pathname, int *fd) {
 }
 
 int nqp_open(const char *pathname) {
-    // printf("nqp_open called\n");
     if (pathname == NULL) {
         return NQP_INVAL;
     }
@@ -573,23 +589,24 @@ int nqp_open(const char *pathname) {
         return -1;
     }
 
-    // for (uint32_t i = 0; i < list->add_index; i++) {
-    //     printf("File Entry Type: 0x%x\n", list->data[i].file.file_attributes);
-    //     printf("First Cluster: %d\n",
-    //            list->data[i].stream_extension.first_cluster);
-    //     printf("File Name: %s\n\n", list->data[i].filename);
-    // }
+    if (table->add_index >= MAX_OPEN_FILES) {
+        return -3;
+    }
 
-    // printf("just before find_file_in_system\n");
     int fd = 0;
     entry_set *file_entry_set = find_file_in_system(pathname, &fd);
-    // printf("nqp_open returned");
-    // Checking if the filepath is directory then returining -2
-    // printf("file_attributes = %d\n", file_entry_set->file.file_attributes);
 
+    // Checking if the filepath is directory then returining -2
     if (file_entry_set->file.file_attributes & 0x10) {
         return -2;
     }
+
+    oft_e oft_entry = {0};
+    oft_entry.file_fd = fd;
+    oft_entry.file_entry_set = *file_entry_set;
+    oft_entry.file_offset = 0;
+
+    add_to_open_file_table(table, oft_entry);
 
     return fd;
 }
