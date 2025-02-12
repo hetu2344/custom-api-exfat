@@ -108,6 +108,8 @@ typedef struct ENTRY_SET {
     file_dentry file;
     stream_extension stream_extension;
     file_name *filenames;
+    char *filename;
+    int num_filenames;
 } entry_set;
 
 #define DENTRY_TYPE_ALLOCATION_BITMAP 0x81
@@ -122,3 +124,8 @@ typedef struct ENTRY_SET {
 #define DENTRY_TYPE_END 0x00
 #define BOOT_SIGNATURE 0xAA55
 #define EXFAT_FILE_SYSTEM_NAME "EXFAT   "
+#define FILE_DIRECTORY_ENTRY 0x85
+#define STREAM_DIRECTORY_ENTRY 0xC0
+#define FILE_NAME_DIRECTORY_ENTRY 0xC1
+#define FILE_ATTRIBUTE_DIRECTORY 0x10
+#define MAX_FILES_PER_DIR 5000
