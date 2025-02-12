@@ -66,9 +66,10 @@ struct CLUSTER_CHAIN_NODE {
     struct CLUSTER_CHAIN_NODE *next;
 };
 
-typedef struct ENTRY_SET_LIST {
+typedef struct {
     entry_set *data;
     uint32_t add_index;
+    uint32_t capacity;
 } entry_set_list;
 
 struct CLUSTER_CHAIN {
@@ -80,20 +81,81 @@ struct CLUSTER_CHAIN {
 typedef struct CLUSTER_CHAIN cluster_chain;
 typedef struct CLUSTER_CHAIN_NODE cluster_chain_node;
 
+void resize_entry_set_list(entry_set_list *list) {
+    uint32_t new_capacity = list->capacity * 2;
+    entry_set *new_data = realloc(list->data, sizeof(entry_set) * new_capacity);
+
+    if (!new_data) {
+        perror("Failed to resize entry_set_list");
+        exit(EXIT_FAILURE);
+    }
+
+    list->data = new_data;
+    list->capacity = new_capacity;
+}
+
 void add_entry_set(entry_set_list *list, entry_set new_set) {
-    list->data[list->add_index] = new_set;
-    list->add_index = list->add_index + 1;
+    if (list->add_index >= list->capacity) {
+        resize_entry_set_list(list);
+    }
+
+    list->data[list->add_index++] = new_set;
 }
 
 entry_set_list *init_entry_set_list(int init_size) {
     entry_set_list *return_list = malloc(sizeof(*return_list));
+    if (!return_list) {
+        perror("Failed to allocate memory for entry_set_list");
+        exit(EXIT_FAILURE);
+    }
+
     return_list->add_index = 0;
-    return_list->data = malloc(sizeof(entry_set) * init_size);
+    return_list->capacity = init_size > 0 ? init_size : 4;
+    return_list->data = malloc(sizeof(entry_set) * return_list->capacity);
+
+    if (!return_list->data) {
+        perror("Failed to allocate memory for entry_set_list data");
+        free(return_list);
+        exit(EXIT_FAILURE);
+    }
+
     return return_list;
 }
+entry_set *get_entry_set(entry_set_list *list, int index) {
+    return &list->data[index];
+}
 
-entry_set get_entry_set(entry_set_list *list, int index) {
-    return list->data[index];
+char **split(const char *string, const char split_char) {
+    // printf("<SPLIT> str recv: %s\n", string);
+    int length = strlen(string);
+
+    int num_words = 0;
+
+    for (int i = 0; i < length; i++) {
+        if (string[i] == split_char) {
+            num_words++;
+        }
+    }
+
+    num_words++;
+
+    // adding extra space to append the NULL at end
+    char **split_ary = (char **)malloc((num_words + 1) * sizeof(char *));
+
+    char *copy = strdup(string);
+    char *word;
+
+    word = strtok(copy, (char[]){split_char, '\0'});
+    for (int i = 0; i < num_words; i++) {
+        split_ary[i] = (char *)malloc(sizeof(char) * (strlen(word) + 1));
+        // printf("Adding %s\n", word);
+        strcpy(split_ary[i], word);
+        word = strtok(NULL, (char[]){split_char, '\0'});
+    }
+
+    split_ary[num_words] = NULL;
+
+    return split_ary;
 }
 
 char *get_filename(entry_set es) {
@@ -292,6 +354,68 @@ void build_cluster_chain(cluster_chain *chain, int first_cluster) {
     close(fd);
 }
 
+void fill_entry_set_list_no_fat_chain(int cluster, entry_set_list *list) {
+    int fd = open(mounted_fs, O_RDONLY);
+
+    char *unicode2ascii_str = NULL;
+    directory_entry read_de = {0};
+    entry_set es = {0};
+    es.num_filenames = -1;
+
+    uint32_t lseek_offset =
+        cluster_heap_offset_bytes +
+        ((cluster - 2) * bytes_per_sector * sectors_per_clustor);
+    // printf("lseek_offset = %d\n", lseek_offset);
+    lseek(fd, lseek_offset, SEEK_SET);
+
+    uint8_t prev_entry_type = 0;
+    uint8_t filenames_index = 0;
+    read(fd, &read_de, 32);
+    prev_entry_type = read_de.entry_type;
+    while (read_de.entry_type != 0x00) {
+        // printf("entry_type = 0x%02X\n", read_de.entry_type);
+
+        // if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
+        if (es.num_filenames != -1) {
+            add_entry_set(list, es);
+        }
+        es.file = read_de.file;
+        /*} else */ if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
+            es.stream_extension = read_de.stream_extension;
+            es.filename =
+                malloc((sizeof(char) * es.stream_extension.name_length) + 1);
+        } else if (read_de.entry_type == FILE_NAME_DIRECTORY_ENTRY) {
+            if (prev_entry_type == FILE_NAME_DIRECTORY_ENTRY) {
+                es.filenames[filenames_index] = read_de.file_name;
+                es.num_filenames = es.num_filenames + 1;
+
+                unicode2ascii_str =
+                    unicode2ascii(es.filenames[filenames_index].file_name, 15);
+                strcat(es.filename, unicode2ascii_str);
+                free(unicode2ascii_str);
+
+                filenames_index++;
+            } else {
+                es.filenames = malloc(sizeof(file_name) * 17);
+                filenames_index = 0;
+                es.filenames[filenames_index] = read_de.file_name;
+                es.num_filenames = 1;
+
+                unicode2ascii_str =
+                    unicode2ascii(es.filenames[filenames_index].file_name, 15);
+                strcat(es.filename, unicode2ascii_str);
+                free(unicode2ascii_str);
+
+                filenames_index++;
+            }
+        }
+        prev_entry_type = read_de.entry_type;
+        read(fd, &read_de, 32);
+    }
+    // printf("index = %d\n", index);
+    close(fd);
+}
+
 void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
     int fd = open(mounted_fs, O_RDONLY);
     cluster_chain_node *current = chain->head;
@@ -316,12 +440,12 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
     while (current != NULL && read_de.entry_type != 0x00) {
         // printf("entry_type = 0x%02X\n", read_de.entry_type);
 
-        if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
-            if (es.num_filenames != -1) {
-                add_entry_set(list, es);
-            }
-            es.file = read_de.file;
-        } else if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
+        // if (read_de.entry_type == FILE_DIRECTORY_ENTRY) {
+        if (es.num_filenames != -1) {
+            add_entry_set(list, es);
+        }
+        es.file = read_de.file;
+        /*} else */ if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
             es.stream_extension = read_de.stream_extension;
             es.filename =
                 malloc((sizeof(char) * es.stream_extension.name_length) + 1);
@@ -367,6 +491,78 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
     close(fd);
 }
 
+entry_set_list *get_dir_entry_set_list(entry_set es) {
+
+    entry_set_list *list = init_entry_set_list(4);
+
+    if (es.stream_extension.flags.no_fat_chain) {
+        fill_entry_set_list_no_fat_chain(es.stream_extension.first_cluster,
+                                         list);
+    } else {
+        cluster_chain *chain = malloc(sizeof(*chain));
+        build_cluster_chain(chain, es.stream_extension.first_cluster);
+        fill_entry_set_list(chain, list);
+    }
+
+    return list;
+}
+
+int find_file_in_list(entry_set_list *list, char *pathname) {
+    // printf("list->add_index = %d\n", list->add_index);
+    for (uint32_t i = 0; i < list->add_index; i++) {
+        // printf("%d\n", i);
+        if (strcmp(pathname, list->data[i].filename) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+entry_set_list *get_root_dir_entry_set_list(int cluster) {
+    entry_set_list *list = init_entry_set_list(4);
+    cluster_chain *chain = malloc(sizeof(*chain));
+    build_cluster_chain(chain, cluster);
+    fill_entry_set_list(chain, list);
+
+    return list;
+}
+
+entry_set *find_file_in_system(const char *pathname, int *fd) {
+    // printf("find_file_in_system called\n");
+    static int nqp_fd = 2;
+    char **pathname_split = split(pathname, '/');
+    entry_set *file_entry_set = malloc(sizeof(*file_entry_set));
+
+    entry_set_list *list =
+        get_root_dir_entry_set_list(mbr->first_cluster_of_root_directory);
+    int index = 0;
+    int get_index = 0;
+    while (pathname_split[index] != NULL) {
+        // printf("path_split = %s\n", pathname_split[index]);
+        get_index = find_file_in_list(list, pathname_split[index]);
+        if (get_index == -1) {
+            free(file_entry_set);
+            *fd = -1;
+            break;
+        }
+        file_entry_set = get_entry_set(list, get_index);
+
+        // checking for directory or not
+        if (file_entry_set->file.file_attributes & 0x10) {
+            // printf("file_attributes = %d\n",
+            // file_entry_set->file.file_attributes);
+            list = get_dir_entry_set_list(*file_entry_set);
+        }
+        index++;
+    }
+
+    if (*fd != -1) {
+        *fd = ++nqp_fd;
+    }
+    return file_entry_set;
+}
+
 int nqp_open(const char *pathname) {
     // printf("nqp_open called\n");
     if (pathname == NULL) {
@@ -377,20 +573,6 @@ int nqp_open(const char *pathname) {
         return -1;
     }
 
-    static int nqp_fd = 3;
-
-    cluster_chain *chain = malloc(sizeof(cluster_chain));
-    build_cluster_chain(chain, mbr->first_cluster_of_root_directory);
-
-    uint32_t d_entries_len =
-        chain->size * directory_entry_per_cluster; // No. of d_entries
-
-    uint32_t entry_set_len = (d_entries_len / 3) - 1;
-
-    entry_set_list *list = init_entry_set_list(entry_set_len);
-
-    fill_entry_set_list(chain, list);
-
     // for (uint32_t i = 0; i < list->add_index; i++) {
     //     printf("File Entry Type: 0x%x\n", list->data[i].file.file_attributes);
     //     printf("First Cluster: %d\n",
@@ -398,8 +580,18 @@ int nqp_open(const char *pathname) {
     //     printf("File Name: %s\n\n", list->data[i].filename);
     // }
 
+    // printf("just before find_file_in_system\n");
+    int fd = 0;
+    entry_set *file_entry_set = find_file_in_system(pathname, &fd);
     // printf("nqp_open returned");
-    return nqp_fd;
+    // Checking if the filepath is directory then returining -2
+    // printf("file_attributes = %d\n", file_entry_set->file.file_attributes);
+
+    if (file_entry_set->file.file_attributes & 0x10) {
+        return -2;
+    }
+
+    return fd;
 }
 
 int nqp_close(int fd) {
