@@ -70,6 +70,7 @@ static uint32_t fat_offset_bytes = 0;
 static uint32_t cluster_heap_offset_bytes = 0;
 static uint32_t size_of_cluster = 0;
 static uint32_t directory_entry_per_cluster = 0;
+static uint32_t nqp_fd = 2;
 static oft *table = NULL;
 
 struct CLUSTER_CHAIN_NODE {
@@ -327,6 +328,7 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
         cluster_heap_offset_bytes = mbr->cluster_heap_offset * bytes_per_sector;
         size_of_cluster = bytes_per_sector * sectors_per_clustor;
         directory_entry_per_cluster = size_of_cluster / 32;
+        nqp_fd = 2;
         table = init_open_file_table();
         // printf("size of cluster = %d\n", size_of_cluster);
         // printf("active FAT = %o\n", mbr->fs_flags);
@@ -345,6 +347,7 @@ nqp_error nqp_mount(const char *source, nqp_fs_type fs_type) {
             free(table);
             table = NULL;
         }
+        nqp_fd = 2;
         return err;
     }
 }
@@ -360,6 +363,7 @@ nqp_error nqp_unmount(void) {
     mbr = NULL;
     free(table);
     table = NULL;
+    nqp_fd = 2;
 
     return NQP_OK;
 }
@@ -547,7 +551,6 @@ entry_set_list *get_root_dir_entry_set_list(int cluster) {
 
 entry_set *find_file_in_system(const char *pathname, int *fd) {
     // printf("find_file_in_system called\n");
-    static int nqp_fd = 2;
     char **pathname_split = split(pathname, '/');
     entry_set *file_entry_set = malloc(sizeof(*file_entry_set));
 

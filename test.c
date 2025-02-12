@@ -12,9 +12,20 @@ int main(int argc, char **argv) {
     nqp_error err = nqp_mount(argv[1], NQP_FS_EXFAT);
     (void)argc;
     (void)err;
-    int fd = nqp_open("assignment1-template/");
+    for (int i = 0; i < 8; i++) {
+        int fd = nqp_open("assignment1-template/cat.c");
 
-    printf("fd = %d\n", fd);
+        printf("fd = %d\n", fd);
+    }
+    nqp_unmount();
+    err = nqp_mount(argv[1], NQP_FS_EXFAT);
+    (void)argc;
+    (void)err;
+    for (int i = 0; i < 9; i++) {
+        int fd = nqp_open("assignment1-template/cat.c");
+
+        printf("fd = %d\n", fd);
+    }
     // assert(err == NQP_OK);
     // err = nqp_unmount();
     // assert(err == NQP_OK);
