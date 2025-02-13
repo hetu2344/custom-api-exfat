@@ -10,5 +10,20 @@
 - **Deleting a dir**: rmdir to delete. Dir should be empty else rmdir will fail
 - **Hard Links**: When you link a file with another file, both of the file point to same inode structure. This link of same inode to the different human readeable is stored in ref field in inode struct. When unlink is called it the ref is decreased by 1 and it removes link from the inode struct to the human readeable name provided. It is only when the ref is 0 file is deleted from the system.
 - **Symbolic links**: Also called as soft link. Works same as hard link but when the original file is deleted then the files with soft links are also deleted.
-- 
-- 
+
+# Chapter 40
+
+- A file system at its very least, has **Data region**, **Inode structure**, and every thing is devided in blocks.
+- **Inode Structure**: It is responsible store information related to files like, size, modified time, access rights and more. Basically metadata for files.
+- **Data Region**: Region when the actual data is stored.
+- In **exFAT** the Inode structure(File type of directory entry) which is inside the cluster heap (data region). The FAT is there to figure out, where are the empty clusters in cluster chain and provide some data related to where can I find the actual data of the file.
+- **Bitmap**: A simple data-strucute, whether the corrosponding object is free(0) or in-use(1).
+- **Superblock**: Contains metadata related to file system.
+- **Opening a file**: Start from root inode and then build the path to the file, by reading the inode, data block of the directories in the way. Once the file is found, then the fd is added to the open file table.
+- **Reading a file**: Read the inode of the file to get the data block pointer, read the content from the data block. Once done, update the read offset in file's inode struct (write).
+- **Creating a file**: Read the inodes to make the path just like opeaning the file. Then read inode bitmap to get the empty inode and write the inode bitmap. Then read the new file's inode and write to add information of new created file.
+- **Writing a file**: Read the file's inode, then data bitmap to figure out empty data block then write the data bitmap and block, then write the file inode.
+
+# Chapter 38
+
+
