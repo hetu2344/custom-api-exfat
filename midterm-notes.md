@@ -24,6 +24,28 @@
 - **Creating a file**: Read the inodes to make the path just like opeaning the file. Then read inode bitmap to get the empty inode and write the inode bitmap. Then read the new file's inode and write to add information of new created file.
 - **Writing a file**: Read the file's inode, then data bitmap to figure out empty data block then write the data bitmap and block, then write the file inode.
 
-# Chapter 38
+# Chapter 04
 
-
+- OS starts the process in the following way:
+  - It first load the code, static data into the virtual address space for the process.
+  - There are two ways to load code and static data:
+    1. **Egarly**: All data at once, old approach
+    2. **Lazy**: Load data as needed, new approach
+  - It then initialize runtime stack and head. argc and argv are added in stack.
+  - Then the **3** file descriptors, **stdin**, **stdout** and **stderr** are initialized.
+  - After this, it jumps to `main()` and executes the program and then handles the control of the CPU to the program
+- **Process States**:
+  1. **Running**: When the process is running, code is getting executed.
+  2. **Ready**: Ready for running but OS decided not to run at that moment.
+  3. **Blocked**: Process has performed some kind of operations that makes it not ready to run untill some other event takes place. Eg, waiting for user input.
+  4. **Initial**: When the process is created.
+  5. **Final**: Process is finished but the clean-up is not complete.
+- At any given point a process can be described by state. State of process contains address space, CPU registers (program counter, stack pointer), and information about I/O.
+- **Process API**:
+  1. Start a process
+  2. End a process
+  3. Wait for process (wait for a process to over)
+  4. Get status of the process
+  5. Other controls: eg stop process from running untill resumed.
+- OS has to keep track of all of the process (running, blocked, ready), when an I/O event completes, which process will run next. This is called **process list**, an entry of process list is called **process control block (PCB)**
+- 
