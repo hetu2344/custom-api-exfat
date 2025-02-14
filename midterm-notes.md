@@ -47,5 +47,5 @@
   3. Wait for process (wait for a process to over)
   4. Get status of the process
   5. Other controls: eg stop process from running untill resumed.
-- OS has to keep track of all of the process (running, blocked, ready), when an I/O event completes, which process will run next. This is called **process list**, an entry of process list is called **process control block (PCB)**
-- 
+- OS has to keep track of all of the process (running, blocked, ready), when an I/O event completes, which process will run next.
+- **Process list** has processes that are running, **Process Control Block(PCB)** hold the details about the process.
