@@ -115,6 +115,23 @@ oft_e *find_oft_e(oft *table, uint32_t fd) {
     return NULL;
 }
 
+int remove_from_open_file_table(oft *table, uint32_t fd) {
+    for (uint32_t i = 0; i < table->add_index; i++) {
+        if (table->entries[i].file_fd == fd) {
+            // Shift all elements to the left to fill the removed entry's space
+            for (uint32_t j = i; j < table->add_index - 1; j++) {
+                table->entries[j] = table->entries[j + 1];
+            }
+
+            // Decrement index
+            table->add_index--;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 void resize_entry_set_list(entry_set_list *list) {
     uint32_t new_capacity = list->capacity * 2;
     entry_set *new_data = realloc(list->data, sizeof(entry_set) * new_capacity);
@@ -615,15 +632,157 @@ int nqp_open(const char *pathname) {
 }
 
 int nqp_close(int fd) {
-    (void)fd;
 
-    return NQP_INVAL;
+    if (fd < 0) {
+        return NQP_INVAL;
+    }
+
+    int err = remove_from_open_file_table(table, fd);
+
+    return err;
+}
+
+ssize_t normal_read(oft_e *fd_entry, void *buffer, size_t count) {
+    ssize_t bytes_read = 0;
+    uint32_t fd_cluster =
+        fd_entry->file_entry_set.stream_extension.first_cluster;
+
+    uint32_t lseek_offset =
+        cluster_heap_offset_bytes +
+        ((fd_cluster - 2) * bytes_per_sector * sectors_per_clustor) +
+        fd_entry->file_offset;
+
+    int fs_fd = open(mounted_fs, O_RDONLY);
+    lseek(fs_fd, lseek_offset, SEEK_SET);
+
+    if (fd_entry->file_offset >=
+        fd_entry->file_entry_set.stream_extension.data_length) {
+        ((char *)buffer)[0] = '\0';
+        close(fs_fd);
+        return 0;
+    }
+    bytes_read = read(fd_entry->file_fd, buffer, count);
+    fd_entry->file_offset += bytes_read;
+
+    close(fs_fd);
+
+    return bytes_read;
+}
+
+ssize_t fat_chain_read(oft_e *fd_entry, void *buffer, size_t count) {
+    uint32_t temp_buffer[bytes_per_sector * sectors_per_clustor];
+    ssize_t actual_bytes_read = 0;
+    ssize_t bytes_read_in_loop = -1;
+    uint32_t fd_cluster =
+        fd_entry->file_entry_set.stream_extension.first_cluster;
+
+    uint32_t lseek_offset = 0;
+    uint32_t offset_in_cluster =
+        fd_entry->file_offset % (bytes_per_sector * sectors_per_clustor);
+
+    uint32_t cluster_in_chain =
+        fd_entry->file_offset / (bytes_per_sector * sectors_per_clustor);
+
+    cluster_chain *chain = malloc(sizeof(*chain));
+    build_cluster_chain(chain, fd_cluster);
+    cluster_chain_node *current = chain->head;
+    for (uint32_t i = 0; i < cluster_in_chain; i++) {
+        current = current->next;
+    }
+    uint32_t current_cluster_index = current->cluster - 2;
+    uint32_t bytes_to_read = 0;
+    uint32_t file_size = fd_entry->file_entry_set.stream_extension.data_length;
+
+    lseek_offset =
+        cluster_heap_offset_bytes +
+        (current_cluster_index * bytes_per_sector * sectors_per_clustor) +
+        offset_in_cluster;
+
+    int fs_fd = open(mounted_fs, O_RDONLY);
+    lseek(fs_fd, lseek_offset, SEEK_SET);
+
+    while ((size_t)actual_bytes_read < count) {
+        if (bytes_read_in_loop == 0) {
+            if (actual_bytes_read != 0) {
+                temp_buffer[0] = '\0';
+                memcpy((char *)buffer + actual_bytes_read, &temp_buffer, 1);
+                close(fs_fd);
+                return actual_bytes_read;
+            } else {
+                ((char *)buffer)[0] = '\0';
+                close(fs_fd);
+                return 0;
+            }
+        }
+
+        bytes_read_in_loop = 0;
+
+        bytes_to_read =
+            ((sectors_per_clustor * bytes_per_sector) - offset_in_cluster);
+        bytes_to_read = bytes_to_read < (count - actual_bytes_read)
+                            ? bytes_to_read
+                            : (count - actual_bytes_read);
+
+        // printf("Bytes 2 read(1): %d\n", bytes_to_read);
+        bytes_to_read = bytes_to_read < (file_size - fd_entry->file_offset)
+                            ? bytes_to_read
+                            : (file_size - fd_entry->file_offset);
+        // printf("Bytes 2 read(2): %d\n", bytes_to_read);
+
+        bytes_read_in_loop += read(fs_fd, &temp_buffer, bytes_to_read);
+        // printf("bytes_read_in_loop = %d\n", (int)bytes_read_in_loop);
+        // if (bytes_read_in_loop == 0) {
+        // }
+
+        memcpy((char *)buffer + actual_bytes_read, (&temp_buffer),
+               bytes_read_in_loop);
+        actual_bytes_read += bytes_read_in_loop;
+        // printf("actual bytes read (in loop): %d\n", (int)actual_bytes_read);
+
+        fd_entry->file_offset += bytes_read_in_loop;
+        if (current->next != NULL) {
+            current = current->next;
+            lseek_offset = (current->cluster - 2 - current_cluster_index - 1) *
+                               (bytes_per_sector * sectors_per_clustor) +
+                           1;
+            current_cluster_index = current->cluster - 2;
+            lseek(fs_fd, lseek_offset, SEEK_CUR);
+        }
+    }
+
+    close(fs_fd);
+    // printf("actual_bytes_read (before return): %d\n\n", (int)actual_bytes_read);
+    return actual_bytes_read;
 }
 
 ssize_t nqp_read(int fd, void *buffer, size_t count) {
+    // printf("Call to nqp_read\n");
     (void)fd;
     (void)buffer;
     (void)count;
 
-    return NQP_INVAL;
+    if (fd < 0) {
+        return NQP_INVAL;
+    }
+
+    oft_e *fd_entry = find_oft_e(table, fd);
+
+    if (fd_entry == NULL) {
+        return -1;
+    }
+
+    // now we are at the start of the first cluster
+    // if their is not fatchain than just add the
+    // fd_offset from the fd_entry.
+    // It there is cluster chain then build the cluster chain first,
+    // and then based on the cluster chain go to correct offset to
+    // read the data.
+    ssize_t bytes_read = 0;
+    if (fd_entry->file_entry_set.stream_extension.flags.no_fat_chain) {
+        bytes_read = normal_read(fd_entry, buffer, count);
+    } else {
+        bytes_read = fat_chain_read(fd_entry, buffer, count);
+    }
+
+    return bytes_read;
 }
