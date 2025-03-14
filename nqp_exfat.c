@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +36,7 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
 
     if (unicode_string != NULL && length > 0) {
         // +1 for a NULL terminator
-        ascii_string = calloc(sizeof(char), length + 1);
+        ascii_string = malloc((sizeof(char) * length) + 1);
 
         if (ascii_string) {
             // strip the top 8 bits from every character in the
@@ -51,17 +52,21 @@ char *unicode2ascii(uint16_t *unicode_string, uint8_t length) {
     return ascii_string;
 }
 
+// Structure to represent an entry in the Open File Table.
 typedef struct OPEN_FILE_TABLE_ENTRY {
     uint32_t file_fd;
     entry_set file_entry_set;
     uint32_t file_offset;
+    uint32_t dirent_index;
 } oft_e;
 
+// Structure to represent the Open File Table.
 typedef struct OPEN_FILE_TABLE {
     oft_e *entries;
     uint32_t add_index;
 } oft;
 
+// Global variables related to the mounted file system.
 static char *mounted_fs = NULL;
 static main_boot_record *mbr = NULL;
 static uint32_t bytes_per_sector = 0;
@@ -73,26 +78,34 @@ static uint32_t directory_entry_per_cluster = 0;
 static uint32_t nqp_fd = 2;
 static oft *table = NULL;
 
+// Structure to represent a node in a cluster chain.
 struct CLUSTER_CHAIN_NODE {
     int cluster;
     struct CLUSTER_CHAIN_NODE *next;
 };
 
+// Structure to represent a list of entry sets.
 typedef struct ENTRY_SET_LIST {
     entry_set *data;
     uint32_t add_index;
     uint32_t capacity;
 } entry_set_list;
 
+// Structure to represent a cluster chain.
 struct CLUSTER_CHAIN {
     struct CLUSTER_CHAIN_NODE *head;
     struct CLUSTER_CHAIN_NODE *last;
     uint32_t size;
 };
 
+// Type definitions for cluster chain and its node.
 typedef struct CLUSTER_CHAIN cluster_chain;
 typedef struct CLUSTER_CHAIN_NODE cluster_chain_node;
 
+/**
+ * Initializes the Open File Table.
+ * @return: A pointer to the initialized Open File Table.
+ */
 oft *init_open_file_table(void) {
     oft *table = malloc(sizeof(oft));
     table->add_index = 0;
@@ -100,11 +113,22 @@ oft *init_open_file_table(void) {
     return table;
 }
 
+/**
+ * Adds an entry to the Open File Table.
+ * @param table: Pointer to the Open File Table.
+ * @param entry: The entry to add.
+ */
 void add_to_open_file_table(oft *table, oft_e entry) {
     table->entries[table->add_index] = entry;
     table->add_index++;
 }
 
+/**
+ * Finds an entry in the Open File Table by file descriptor.
+ * @param table: Pointer to the Open File Table.
+ * @param fd: The file descriptor to search for.
+ * @return: A pointer to the Open File Table entry, or NULL if not found.
+ */
 oft_e *find_oft_e(oft *table, uint32_t fd) {
     for (uint32_t i = 0; i < table->add_index; i++) {
         if (table->entries[i].file_fd == fd) {
@@ -115,6 +139,12 @@ oft_e *find_oft_e(oft *table, uint32_t fd) {
     return NULL;
 }
 
+/**
+ * Removes an entry from the Open File Table.
+ * @param table: Pointer to the Open File Table.
+ * @param fd: The file descriptor of the entry to remove.
+ * @return: 0 on success, -1 on failure.
+ */
 int remove_from_open_file_table(oft *table, uint32_t fd) {
     for (uint32_t i = 0; i < table->add_index; i++) {
         if (table->entries[i].file_fd == fd) {
@@ -132,6 +162,10 @@ int remove_from_open_file_table(oft *table, uint32_t fd) {
     return -1;
 }
 
+/**
+ * Resizes the entry set list to double its capacity.
+ * @param list: Pointer to the entry set list.
+ */
 void resize_entry_set_list(entry_set_list *list) {
     uint32_t new_capacity = list->capacity * 2;
     entry_set *new_data = realloc(list->data, sizeof(entry_set) * new_capacity);
@@ -145,6 +179,11 @@ void resize_entry_set_list(entry_set_list *list) {
     list->capacity = new_capacity;
 }
 
+/**
+ * Adds an entry set to the entry set list.
+ * @param list: Pointer to the entry set list.
+ * @param new_set: The entry set to add.
+ */
 void add_entry_set(entry_set_list *list, entry_set new_set) {
     if (list->add_index >= list->capacity) {
         resize_entry_set_list(list);
@@ -153,29 +192,52 @@ void add_entry_set(entry_set_list *list, entry_set new_set) {
     list->data[list->add_index++] = new_set;
 }
 
+/**
+ * Initializes an entry set list.
+ * @param init_size: The initial capacity of the list.
+ * @return: A pointer to the initialized entry set list.
+ */
 entry_set_list *init_entry_set_list(int init_size) {
     entry_set_list *return_list = malloc(sizeof(*return_list));
-    if (!return_list) {
-        perror("Failed to allocate memory for entry_set_list");
-        exit(EXIT_FAILURE);
-    }
 
     return_list->add_index = 0;
     return_list->capacity = init_size > 0 ? init_size : 4;
     return_list->data = malloc(sizeof(entry_set) * return_list->capacity);
 
-    if (!return_list->data) {
-        perror("Failed to allocate memory for entry_set_list data");
-        free(return_list);
-        exit(EXIT_FAILURE);
-    }
-
     return return_list;
 }
+
+/**
+ * Retrieves an entry set from an entry set list by index.
+ * 
+ * @param list Pointer to the entry set list.
+ * @param index Index of the desired entry set.
+ * @return Pointer to the entry set.
+ */
 entry_set *get_entry_set(entry_set_list *list, int index) {
     return &list->data[index];
 }
 
+/**
+ * Creates and initializes a new cluster chain.
+ * 
+ * @return Pointer to the allocated cluster chain.
+ */
+cluster_chain *get_cluster_chain(void) {
+    cluster_chain *return_chain = malloc(sizeof(*return_chain));
+    return_chain->head = NULL;
+    return_chain->last = NULL;
+    return_chain->size = 0;
+    return return_chain;
+}
+
+/**
+ * Splits a string into substrings based on a given delimiter.
+ * 
+ * @param string The input string.
+ * @param split_char The delimiter character.
+ * @return Array of strings, NULL-terminated.
+ */
 char **split(const char *string, const char split_char) {
     int length = strlen(string);
 
@@ -215,6 +277,12 @@ char **split(const char *string, const char split_char) {
     return split_ary;
 }
 
+/**
+ * Retrieves the filename from an entry set.
+ * 
+ * @param es The entry set containing the filename.
+ * @return Heap-allocated filename string.
+ */
 char *get_filename(entry_set es) {
     char *filename =
         malloc((sizeof(char) * es.stream_extension.name_length) + 1);
@@ -228,6 +296,12 @@ char *get_filename(entry_set es) {
     return filename;
 }
 
+/**
+ * Adds a cluster to a cluster chain.
+ * 
+ * @param chain Pointer to the cluster chain.
+ * @param cluster Cluster ID to add.
+ */
 void add_cluster_to_chain(cluster_chain *chain, int cluster) {
 
     cluster_chain_node *new_node = malloc(sizeof(cluster_chain_node));
@@ -252,6 +326,11 @@ void add_cluster_to_chain(cluster_chain *chain, int cluster) {
     }
 }
 
+/**
+ * Frees memory allocated for a cluster chain.
+ * 
+ * @param chain Pointer to the cluster chain.
+ */
 void free_cluster_chain(cluster_chain *chain) {
     cluster_chain_node *current = chain->head;
     cluster_chain_node *temp = NULL;
@@ -263,7 +342,12 @@ void free_cluster_chain(cluster_chain *chain) {
     free(chain);
 }
 
-// preconditions for the mount function
+/**
+ * Pre-condition checks for mounting a file system.
+ * 
+ * @param source The file system source.
+ * @param fs_type The type of file system.
+ */
 void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
     assert(source != NULL);
 
@@ -272,7 +356,12 @@ void nqp_mount_pre(const char *source, nqp_fs_type fs_type) {
     assert(mounted_fs == NULL);
 }
 
-// function to validate the contents of Main Boot Region
+/**
+ * Validates the Main Boot Record of the file system.
+ * 
+ * @param mbr The main boot record structure.
+ * @return Error code indicating success or failure.
+ */
 nqp_error validate_main_boot_region(main_boot_record mbr) {
     // checking the boot signature is 0xAA55 or not
     if (mbr.boot_signature != BOOT_SIGNATURE) {
@@ -385,6 +474,12 @@ nqp_error nqp_unmount(void) {
     return NQP_OK;
 }
 
+/**
+ * Builds a cluster chain starting from the given cluster.
+ * 
+ * @param chain Pointer to the cluster chain.
+ * @param first_cluster First cluster in the chain.
+ */
 void build_cluster_chain(cluster_chain *chain, int first_cluster) {
     // printf("build_cluster_chain called\n");
     add_cluster_to_chain(chain, first_cluster);
@@ -414,6 +509,12 @@ void build_cluster_chain(cluster_chain *chain, int first_cluster) {
     close(fd);
 }
 
+/**
+ * Fills an entry set list with directory entries when no FAT chain is used.
+ * 
+ * @param cluster The starting cluster of the directory.
+ * @param list Pointer to the entry set list to populate.
+ */
 void fill_entry_set_list_no_fat_chain(int cluster, entry_set_list *list) {
     int fd = open(mounted_fs, O_RDONLY);
 
@@ -444,7 +545,8 @@ void fill_entry_set_list_no_fat_chain(int cluster, entry_set_list *list) {
         } else if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
             es.stream_extension = read_de.stream_extension;
             es.filename =
-                malloc((sizeof(char) * es.stream_extension.name_length) + 1);
+                calloc(es.stream_extension.name_length + 1, sizeof(char));
+            filenames_index = 0;
         } else if (read_de.entry_type == FILE_NAME_DIRECTORY_ENTRY) {
             if (es.num_filenames == 0) {
                 es.filenames = malloc(sizeof(file_name) *
@@ -455,17 +557,26 @@ void fill_entry_set_list_no_fat_chain(int cluster, entry_set_list *list) {
             es.num_filenames++;
 
             unicode2ascii_str = unicode2ascii(read_de.file_name.file_name, 15);
-            strcat(es.filename, unicode2ascii_str);
+            strncat(es.filename, unicode2ascii_str, strlen(unicode2ascii_str));
             free(unicode2ascii_str);
 
             filenames_index++;
         }
         read(fd, &read_de, 32);
     }
+    if (es.num_filenames > 0) {
+        add_entry_set(list, es);
+    }
     // printf("index = %d\n", index);
     close(fd);
 }
 
+/**
+ * Fills an entry set list by traversing a cluster chain.
+ * 
+ * @param chain Pointer to the cluster chain.
+ * @param list Pointer to the entry set list to populate.
+ */
 void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
     int fd = open(mounted_fs, O_RDONLY);
     cluster_chain_node *current = chain->head;
@@ -497,7 +608,8 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
         } else if (read_de.entry_type == STREAM_DIRECTORY_ENTRY) {
             es.stream_extension = read_de.stream_extension;
             es.filename =
-                malloc((sizeof(char) * es.stream_extension.name_length) + 1);
+                calloc(es.stream_extension.name_length + 1, sizeof(char));
+            filenames_index = 0;
         } else if (read_de.entry_type == FILE_NAME_DIRECTORY_ENTRY) {
             if (es.num_filenames == 0) {
                 es.filenames = malloc(sizeof(file_name) *
@@ -508,7 +620,7 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
             es.num_filenames++;
 
             unicode2ascii_str = unicode2ascii(read_de.file_name.file_name, 15);
-            strcat(es.filename, unicode2ascii_str);
+            strncat(es.filename, unicode2ascii_str, strlen(unicode2ascii_str));
             free(unicode2ascii_str);
 
             filenames_index++;
@@ -525,10 +637,20 @@ void fill_entry_set_list(cluster_chain *chain, entry_set_list *list) {
         read(fd, &read_de, 32);
         index++;
     }
+    if (es.num_filenames > 0) {
+        add_entry_set(list, es);
+    }
+
     // printf("index = %d\n", index);
     close(fd);
 }
 
+/**
+ * Retrieves the entry set list for a given directory entry.
+ * 
+ * @param es The entry set representing the directory.
+ * @return Pointer to an allocated entry set list.
+ */
 entry_set_list *get_dir_entry_set_list(entry_set es) {
 
     entry_set_list *list = init_entry_set_list(4);
@@ -537,7 +659,7 @@ entry_set_list *get_dir_entry_set_list(entry_set es) {
         fill_entry_set_list_no_fat_chain(es.stream_extension.first_cluster,
                                          list);
     } else {
-        cluster_chain *chain = malloc(sizeof(*chain));
+        cluster_chain *chain = get_cluster_chain();
         build_cluster_chain(chain, es.stream_extension.first_cluster);
         fill_entry_set_list(chain, list);
     }
@@ -545,6 +667,13 @@ entry_set_list *get_dir_entry_set_list(entry_set es) {
     return list;
 }
 
+/**
+ * Searches for a file within an entry set list by pathname.
+ * 
+ * @param list Pointer to the entry set list.
+ * @param pathname The filename to search for.
+ * @return Index of the file in the list, or -1 if not found.
+ */
 int find_file_in_list(entry_set_list *list, char *pathname) {
     // printf("list->add_index = %d\n", list->add_index);
     for (uint32_t i = 0; i < list->add_index; i++) {
@@ -557,17 +686,57 @@ int find_file_in_list(entry_set_list *list, char *pathname) {
     return -1;
 }
 
+/**
+ * Retrieves the root directory entry set list.
+ * 
+ * @param cluster The starting cluster of the root directory.
+ * @return Pointer to an allocated entry set list.
+ */
 entry_set_list *get_root_dir_entry_set_list(int cluster) {
     entry_set_list *list = init_entry_set_list(4);
-    cluster_chain *chain = malloc(sizeof(*chain));
+    cluster_chain *chain = get_cluster_chain();
     build_cluster_chain(chain, cluster);
     fill_entry_set_list(chain, list);
 
     return list;
 }
 
+/**
+ * Retrieves the root entry set representing the root directory.
+ * 
+ * @return Pointer to the allocated root entry set.
+ */
+entry_set *get_root_entry_set(void) {
+    entry_set *root_set = malloc(sizeof(*root_set));
+    entry_set empty_set = {0};
+    memcpy(root_set, &empty_set, sizeof(entry_set));
+
+    root_set->filename = malloc(sizeof(char) * 2);
+    root_set->filename[0] = '/';
+    root_set->filename[1] = '\0';
+
+    root_set->stream_extension.name_length = 1;
+    root_set->stream_extension.first_cluster =
+        mbr->first_cluster_of_root_directory;
+    root_set->stream_extension.flags.no_fat_chain = 1;
+    root_set->file.file_attributes = 16;
+
+    return root_set;
+}
+
+/**
+ * Finds a file in the file system given its pathname.
+ * 
+ * @param pathname The absolute path to the file.
+ * @param fd Pointer to the file descriptor to store the result.
+ * @return Pointer to the file's entry set, or NULL if not found.
+ */
 entry_set *find_file_in_system(const char *pathname, int *fd) {
     // printf("find_file_in_system called\n");
+    if (strcmp(pathname, "/") == 0) {
+        *fd = ++nqp_fd;
+        return get_root_entry_set();
+    }
     char **pathname_split = split(pathname, '/');
     entry_set *file_entry_set = malloc(sizeof(*file_entry_set));
 
@@ -587,6 +756,7 @@ entry_set *find_file_in_system(const char *pathname, int *fd) {
 
         // checking for directory or not
         if (file_entry_set->file.file_attributes & 0x10) {
+            // printf("file_atte = %u\n", file_entry_set->file.file_attributes);
             // printf("file_attributes = %d\n",
             // file_entry_set->file.file_attributes);
             list = get_dir_entry_set_list(*file_entry_set);
@@ -614,11 +784,11 @@ int nqp_open(const char *pathname) {
     }
 
     int fd = 0;
-    entry_set *file_entry_set = find_file_in_system(pathname, &fd);
+    entry_set *file_entry_set = NULL;
+    file_entry_set = find_file_in_system(pathname, &fd);
 
-    // Checking if the filepath is directory then returining -2
-    if (file_entry_set->file.file_attributes & 0x10) {
-        return -2;
+    if (fd < 0) {
+        return fd;
     }
 
     oft_e oft_entry = {0};
@@ -655,13 +825,13 @@ ssize_t normal_read(oft_e *fd_entry, void *buffer, size_t count) {
     int fs_fd = open(mounted_fs, O_RDONLY);
     lseek(fs_fd, lseek_offset, SEEK_SET);
 
-    if (fd_entry->file_offset >=
-        fd_entry->file_entry_set.stream_extension.data_length) {
-        ((char *)buffer)[0] = '\0';
-        close(fs_fd);
-        return 0;
-    }
-    bytes_read = read(fd_entry->file_fd, buffer, count);
+    uint32_t file_size = fd_entry->file_entry_set.stream_extension.data_length;
+
+    uint32_t bytes_to_read = count < (file_size - fd_entry->file_offset)
+                                 ? count
+                                 : (file_size - fd_entry->file_offset);
+
+    bytes_read = read(fd_entry->file_fd, buffer, bytes_to_read);
     fd_entry->file_offset += bytes_read;
 
     close(fs_fd);
@@ -683,7 +853,7 @@ ssize_t fat_chain_read(oft_e *fd_entry, void *buffer, size_t count) {
     uint32_t cluster_in_chain =
         fd_entry->file_offset / (bytes_per_sector * sectors_per_clustor);
 
-    cluster_chain *chain = malloc(sizeof(*chain));
+    cluster_chain *chain = get_cluster_chain();
     build_cluster_chain(chain, fd_cluster);
     cluster_chain_node *current = chain->head;
     for (uint32_t i = 0; i < cluster_in_chain; i++) {
@@ -761,6 +931,10 @@ ssize_t nqp_read(int fd, void *buffer, size_t count) {
     (void)buffer;
     (void)count;
 
+    if (mounted_fs == NULL) {
+        return NQP_INVAL;
+    }
+
     if (fd < 0) {
         return NQP_INVAL;
     }
@@ -771,6 +945,10 @@ ssize_t nqp_read(int fd, void *buffer, size_t count) {
         return -1;
     }
 
+    if (fd_entry->file_entry_set.file.file_attributes & 0x10) {
+        return -2; // cannot read directories
+    }
+
     // now we are at the start of the first cluster
     // if their is not fatchain than just add the
     // fd_offset from the fd_entry.
@@ -778,6 +956,11 @@ ssize_t nqp_read(int fd, void *buffer, size_t count) {
     // and then based on the cluster chain go to correct offset to
     // read the data.
     ssize_t bytes_read = 0;
+    if (fd_entry->file_offset >=
+        fd_entry->file_entry_set.stream_extension.data_length) {
+        ((char *)buffer)[0] = '\0';
+        return 0;
+    }
     if (fd_entry->file_entry_set.stream_extension.flags.no_fat_chain) {
         bytes_read = normal_read(fd_entry, buffer, count);
     } else {
@@ -785,4 +968,62 @@ ssize_t nqp_read(int fd, void *buffer, size_t count) {
     }
 
     return bytes_read;
+}
+
+ssize_t nqp_getdents(int fd, void *dirp, size_t count) {
+    if (mounted_fs == NULL) {
+        return NQP_INVAL;
+    }
+
+    if (dirp == NULL || fd < 0 || count < 1) {
+        return NQP_INVAL;
+    }
+
+    oft_e *fd_entry = find_oft_e(table, fd);
+    entry_set_list *list = init_entry_set_list(4);
+    entry_set *fd_entry_set = NULL;
+    nqp_dirent *new_entry = NULL;
+    char *name = NULL;
+    static uint64_t inode_no = 1;
+    ssize_t return_count = 0;
+
+    if (fd_entry == NULL) {
+        return -1;
+    }
+
+    if (fd_entry->file_entry_set.file.file_attributes & 0x10) {
+        list = get_dir_entry_set_list(fd_entry->file_entry_set);
+        if (list == NULL) {
+            return_count = -1;
+        } else {
+            for (size_t i = fd_entry->dirent_index;
+                 (size_t)return_count < count && i < list->add_index; i++) {
+                new_entry = malloc(sizeof(*new_entry));
+                fd_entry_set = get_entry_set(list, i);
+                new_entry->inode_number = inode_no;
+                inode_no++;
+                name = malloc((sizeof(char) *
+                               fd_entry_set->stream_extension.name_length) +
+                              1);
+                strcpy(name, fd_entry_set->filename);
+                new_entry->name = name;
+                new_entry->name_len =
+                    fd_entry_set->stream_extension.name_length;
+                if (fd_entry_set->file.file_attributes & 0x10) {
+                    new_entry->type = DT_DIR;
+                } else {
+                    new_entry->type = DT_REG;
+                }
+
+                memcpy((char *)dirp + (return_count * sizeof(nqp_dirent)),
+                       new_entry, sizeof(nqp_dirent));
+                return_count++;
+            }
+            fd_entry->dirent_index += return_count;
+        }
+    } else {
+        return_count = -1;
+    }
+
+    return return_count;
 }

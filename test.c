@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     nqp_error err = nqp_mount(argv[1], NQP_FS_EXFAT);
     (void)argc;
     (void)err;
-    int fd = nqp_open("picture.jpg");
+    int fd = nqp_open("/0/5/9/hello.txt");
 
     printf("fd = %d\n", fd);
 
@@ -53,6 +53,7 @@ int main(int argc, char **argv) {
         //     }
         // }
         // printf("\n");
+        printf("%s", buffer);
     }
     printf("Num of bytes read: %d\n", (int)offset);
     // assert(err == NQP_OK);
